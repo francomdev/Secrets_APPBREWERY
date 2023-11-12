@@ -4,6 +4,9 @@ const bodyParser = require("body-parser")
 const ejs = require("ejs")
 const mongoose = require("mongoose")
 const encrypt = require("mongoose-encryption")
+const md5 = require("md5")
+const bcrypt = require('bcrypt')
+const saltRounds = 10
 
 const app = express()
 
@@ -18,12 +21,7 @@ const userSchema = new mongoose.Schema({
     password: String
 })
 
-
-userSchema.plugin(encrypt, {secret: process.env.SECRET, encryptedFields: ['password']})
-
 const User = new mongoose.model("User", userSchema)
-
-
 
 app.get("/", (req, res) => {
     res.render("home.ejs")
@@ -37,25 +35,35 @@ app.get("/register", (req, res) => {
     res.render("register.ejs")
 })
 
-app.post("/register", async (req, res) => {
-    const newUser = new User({
-        email: req.body.username,
-        password: req.body.password
+app.post("/register", (req, res) => {
+     bcrypt.hash(req.body.password, saltRounds, (err, hash) => {
+        if (err) {
+            console.log(err)
+        } else {
+        const newUser = new User({
+            email: req.body.username,
+            password: hash
+        })
+        newUser.save()
+    }
     })
-    await newUser.save()
+    
     res.render("secrets.ejs")
 })
 
-app.post("/login", (req, res) =>{
+app.post("/login", (req, res) => {
     const username = req.body.username
     const password = req.body.password
+    
     User.findOne({email: username}).then( (foundUser) => {
         if (foundUser) {
-            if (foundUser.password === password) {
+            bcrypt.compare(password, foundUser.password, function(err, result) {
+            if (result) {
                 res.render("secrets.ejs")
             } else {
                 console.log("Wrong password")
             }
+            });
         } else {
             console.log("User not found")
         }
